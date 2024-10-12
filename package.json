@@ -1,0 +1,18 @@
+{
+  "name": "my-dairy",
+  "version": "1.0.0",
+  "description": "My dairy",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Kavy Jaiswal",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.20.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "mysql2": "^3.11.3"
+  }
+}
