@@ -1,26 +1,35 @@
-function getOffsetString(offsetMinutes) {
-    // Determine if the offset is positive or negative
-    const sign = offsetMinutes >= 0 ? '-' : '+';
-    
-    // Get the absolute value of the minutes to avoid negative values when formatting
-    const absoluteOffset = Math.abs(offsetMinutes);
-  
-    // Calculate hours and minutes
-    const hours = Math.floor(absoluteOffset / 60);
-    const minutes = absoluteOffset % 60;
-  
-    // Format hours and minutes to ensure two digits
-    const formattedHours = String(hours).padStart(2, '0');
-    const formattedMinutes = String(minutes).padStart(2, '0');
-  
-    // Return the formatted timezone string
-    return `${sign}${formattedHours}:${formattedMinutes}`;
-  }
+function logout(res) {
+  res.cookie("token", null, {
+    path: "/",
+    httpOnly: true,
+    secure: false,
+    maxAge: -20,
+    sameSite: "strict",
+  });
+  return res;
+}
 
 function getLocaleDate(offsetMinutes) {
   const date = new Date();
-  const localDate = new Date(date-offsetMinutes*60000).toISOString().split('T')[0];
-  return localDate;
+  let today = new Date(date-offsetMinutes*60000).toISOString().split("T")[0];
+  return today;
+}
+
+function handleUnknownError(error, res){
+  console.log(error);
+  res = logout(res);
+  res.status(200).send({
+    code: 201,
+    path: "/login",
+    message: "Unknown error occured, try later!",
+  });
+}
+
+function handleFetalError(res){
+  res = logout(res);
+    res
+      .status(200)
+      .send({ code: 201, message: "Bad Request!", path: "/login" });
 }
   
-export {getOffsetString, getLocaleDate};
+export {logout, getLocaleDate, handleUnknownError, handleFetalError};

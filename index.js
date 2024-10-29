@@ -1,101 +1,88 @@
-import express from "express";
+import express, { response } from "express";
 import bodyParser from "body-parser";
-import mysql from "mysql2/promise";
-import { getOffsetString, getLocaleDate } from "./utils.js";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import cookie from "cookie";
+import userRouter from "./routes/userRoute.js";
+import entryRouter from "./routes/entryRoute.js";
+import goalRouter from "./routes/goalRoute.js";
+import { logout } from "./utils.js";
 
+/*
+codes to be used
+code 200 = ok normal functioning as expected
+code 201 = show message and redirect to given path
+code 202 = known minor error occured show error message to user and stay on the page
+code 400 = redirect login without showing any message
+*/ 
 
 dotenv.config();
-const PORT = process.env.port || 4000;
+
+
+const PORT = process.env.PORT || 4000;
+const FRONTEND = process.env.FRONTEND;
+const DBURL = process.env.DBURL;
+const SECRET = process.env.SECRET;
+
+
 const app = express();
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', FRONTEND);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  next();
+});
+
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', FRONTEND);
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.status(200).send();
+});
 
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 
+app.use("/api/user", userRouter);
 
-app.get("/api/entry/page", async(req, res)=>{
-    const page = parseInt(req.query.page);
+app.use((req, res, next)=>{
+  const { token } = cookie.parse(req.headers.cookie || "");
+  if (token) {
     try{
-       const [response] =  await connection.execute(`select * from entry order by entry_date desc limit 10 offset ${10*page}`);
-       const [count] = await connection.execute("select count(id) as count from entry");
-       res.status(200).send({response, count: count[0].count, page: page});
-    }catch(error){
-        console.log(error);
-        throw(error);
+      const {username} = jwt.verify(token, SECRET);
+      req.username = username;
+      next();
+    }catch(error){ 
+      res = logout(res);
+      res.status(200).send({code: 400});
     }
-});
-
-app.post("/api/entry/create_entry", async(req, res)=>{
-  const title = req.body.title;
-  const content = req.body.content;
-  try{
-     await connection.execute(`insert into entry(title, content) value(?, ?)`,[title, content]);
-     res.status(204).send("hiii");
-  }catch(error){
-      console.log(error);
-      res.status(500).send();
   }
-});
+  else res.status(200).send({code: 400});
+})
 
-app.get("/api/checklist",async (req, res)=>{
-  const localDate = getLocaleDate(req.query.offset);
-  const offsetString = getOffsetString(req.query.offset);
-  try{
-    const [response] = await connection.execute(`select goal, status, remark, score, id, CONVERT_TZ(entry_date, '+00:00', ?) as entry_date  from daily_goal where Date(entry_date) = ?`,[offsetString, localDate]);
-    res.status(200).send({response});
- }catch(error){
-     console.log(error);
-     throw(error);
- }
-}
-)
-
-app.post("/api/checklist/check",async (req, res)=>{
-  const localDate = getLocaleDate(req.body.offset);
-  const offsetString = getOffsetString(req.body.offset);
-  try{
-    await connection.execute(`update daily_goal set status = ? where id = ?`,[req.body.status, req.body.id]);
-    const [response] = await connection.execute(`select goal, status, remark, score, id, CONVERT_TZ(entry_date, '+00:00', ?) as entry_date  from daily_goal where Date(entry_date) = ?`,[offsetString, localDate]);
-    res.status(200).send({response});
- }catch(error){
-     console.log(error);
-     throw(error);
- }
-}
-);
-
-app.post("/api/checklist/create_goal",async (req, res)=>{
-  const localDate = getLocaleDate(req.body.offset);
-  const offsetString = getOffsetString(req.body.offset);
-  try{
-    await connection.execute(`insert into daily_goal(goal, score, status) value(?,?,0)`,[req.body.goal, req.body.score]);
-    const [response] = await connection.execute(`select goal, status, remark, score, id, CONVERT_TZ(entry_date, '+00:00', ?) as entry_date  from daily_goal where Date(entry_date) = ?`,[offsetString, localDate]);
-    res.status(200).send({response});
- }catch(error){
-     console.log(error);
-     throw(error);
- }
-}
-);
+app.get("/api/check", (req, res)=>{
+  res.status(200).send({code: 200});
+})
 
 
-let connection;
+app.use("/api/entry", entryRouter );
+app.use("/api/goal", goalRouter);
 
-app.listen(PORT, async () => {
-    try{
-        connection = await mysql.createConnection({
-        host: process.env.DATABASE_HOST,
-        port: process.env.DATABASE_PORT,
-        user: process.env.DATABASE_USER,
-        database: process.env.DATABASE,
-        password: process.env.DATABASE_PASSWORD,
-        timezone: "Z"
-      });
-      console.log(`Connected and Listening to port ${PORT}`);
-      }catch(error){
-        console.log(error);
-        res.satus(500).send();
-      }
-});
+
+mongoose.connect(DBURL)
+.then(()=>{
+    app.listen(PORT,()=>{
+        console.log("listening to port", PORT);
+    });
+})
+.catch((error)=> {
+    console.log(error);
+})
+
+
