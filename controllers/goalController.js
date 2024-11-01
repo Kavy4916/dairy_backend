@@ -1,10 +1,13 @@
 import Goal from "../models/goalModel.js";
 import {
   getLocaleDate,
-  logout,
   handleUnknownError,
   handleFetalError,
 } from "../utils.js";
+import axios from "axios";
+import { setupCache } from "axios-cache-interceptor";
+
+const quoteApi = setupCache(axios.create(), { ttl: 3000000 });
 
 const create = async (req, res) => {
   const username = req.username;
@@ -72,15 +75,16 @@ const goalCheck = async (req, res) => {
       const goal = await Goal.findOne({ _id });
       if (goal) {
         const today = getLocaleDate(offset);
-        const yesterday =
-          today.split("-")[0] +
-          "-" +
-          today.split("-")[1] +
-          "-" +
-          (parseInt(today.split("-")[2]) - 1);
-        if (goal.username === username && (goal.deadline === today || goal.deadline === yesterday)) {
+        const date = new Date();
+        const yesterday = new Date(date.getTime() - 86400000 - offset * 60000)
+          .toISOString()
+          .split("T")[0];
+        if (
+          goal.username === username &&
+          (goal.deadline === today || goal.deadline === yesterday)
+        ) {
           await Goal.updateOne({ _id: _id }, { $set: { status } });
-          res.status(200).send({ code: 200});
+          res.status(200).send({ code: 200 });
         } else {
           handleFetalError(res);
         }
@@ -106,7 +110,23 @@ const todayGoal = async (req, res) => {
         .equals(today)
         .where("username")
         .equals(username);
-      res.status(200).send({ code: 200, goals });
+      let quote = {};
+      try {
+        const response = await quoteApi.get("https://zenquotes.io/api/today");
+        quote = response.data[0];
+        if (!quote?.q || !quote?.a)
+          quote = {
+            q: "There isn't a way things should be. There's just what happens and what we do.",
+            a: "Terry Pratchett",
+          };
+      } catch (error) {
+        console.log("Quote API error", error);
+        quote = {
+          q: "Life comes at us in waves. We can't predict or control those waves, but we can learn to surf.",
+          a: "Dan Millman",
+        };
+      }
+      res.status(200).send({ code: 200, goals, quote });
     } catch (error) {
       handleUnknownError(error, res);
     }
@@ -116,7 +136,7 @@ const todayGoal = async (req, res) => {
 const dateGoal = async (req, res) => {
   const username = req.username;
   const date = req.query.date;
-  if (date > "2030-12-31" || date <  "2024-10-01") {
+  if (date > "2030-12-31" || date < "2024-10-01") {
     handleFetalError(res);
   } else {
     try {
@@ -138,13 +158,10 @@ const yesterdayGoal = async (req, res) => {
   if ((!offset && offset != 0) || offset > 840 || offset < -720) {
     handleFetalError(res);
   } else {
-    const today = getLocaleDate(req.query.offset);
-    const yesterday =
-      today.split("-")[0] +
-      "-" +
-      today.split("-")[1] +
-      "-" +
-      (parseInt(today.split("-")[2]) - 1);
+    const date = new Date();
+    const yesterday = new Date(date.getTime() - 86400000 - offset * 60000)
+      .toISOString()
+      .split("T")[0];
     try {
       const goals = await Goal.find()
         .where("deadline")
@@ -365,5 +382,5 @@ export {
   getGoal,
   editGoal,
   deleteGoal,
-  dateGoal
+  dateGoal,
 };

@@ -2,17 +2,17 @@ function logout(res) {
   res.cookie("token", null, {
     path: "/",
     httpOnly: true,
-    secure: false,
+    secure: true,
     maxAge: -20,
-    sameSite: "strict",
+    sameSite: "None",
   });
   return res;
 }
 
-function getLocaleDate(offsetMinutes) {
+function getLocaleDate(offset) {
   const date = new Date();
-  let today = new Date(date-offsetMinutes*60000).toISOString().split("T")[0];
-  return today;
+  const localDate = new Date(date.getTime()-offset*60000).toISOString().split("T")[0];
+  return localDate;
 }
 
 function handleUnknownError(error, res){
