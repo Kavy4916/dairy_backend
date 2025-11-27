@@ -4,10 +4,10 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import cookie from "cookie";
-import userRouter from "./routes/userRoute.js";
-import entryRouter from "./routes/entryRoute.js";
-import goalRouter from "./routes/goalRoute.js";
-import { logout } from "./utils.js";
+import userRouter from "../routes/userRoute.js";
+import entryRouter from "../routes/entryRoute.js";
+import goalRouter from "../routes/goalRoute.js";
+import { logout } from "../utils.js";
 
 /*
 codes to be used
@@ -74,15 +74,19 @@ app.get("/api/check", (req, res)=>{
 app.use("/api/entry", entryRouter );
 app.use("/api/goal", goalRouter);
 
+let isConnected = false;
 
-mongoose.connect(DBURL)
-.then(()=>{
-    app.listen(PORT,()=>{
-        console.log("listening to port", PORT);
-    });
-})
-.catch((error)=> {
-    console.log(error);
-})
+async function connectDB() {
+  if (!isConnected) {
+    await mongoose.connect(DBURL);
+    isConnected = true;
+    console.log("MongoDB Connected (Vercel Serverless)");
+  }
+}
+
+export default serverless(async (req, res) => {
+  await connectDB();  // ensures DB is connected during cold start
+  return app(req, res);
+});
 
 
